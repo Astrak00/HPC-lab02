@@ -1,0 +1,6 @@
+amdahls y guftafson
+
+build/*
+out*
+in.*
+.clang*
