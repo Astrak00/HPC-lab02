@@ -26,16 +26,16 @@ PGM_IMG contrast_enhancement_g(PGM_IMG img_in) {
 //   result.img_g = (unsigned char *) malloc(result.w * result.h * sizeof(unsigned char));
 //   result.img_b = (unsigned char *) malloc(result.w * result.h * sizeof(unsigned char));
 
-//   histogram(hist, img_in.img_r, img_in.h * img_in.w, 256);
-//   histogram_equalization(result.img_r, img_in.img_r, hist, result.w * result.h, 256);
+// histogram(hist, img_in.img_r, img_in.h * img_in.w, 256);
+// histogram_equalization(result.img_r, img_in.img_r, hist, result.w * result.h, 256);
 
-//   histogram(hist, img_in.img_g, img_in.h * img_in.w, 256);
-//   histogram_equalization(result.img_g, img_in.img_g, hist, result.w * result.h, 256);
+// histogram(hist, img_in.img_g, img_in.h * img_in.w, 256);
+// histogram_equalization(result.img_g, img_in.img_g, hist, result.w * result.h, 256);
 
-//   histogram(hist, img_in.img_b, img_in.h * img_in.w, 256);
-//   histogram_equalization(result.img_b, img_in.img_b, hist, result.w * result.h, 256);
+// histogram(hist, img_in.img_b, img_in.h * img_in.w, 256);
+// histogram_equalization(result.img_b, img_in.img_b, hist, result.w * result.h, 256);
 
-//   return result;
+// return result;
 // }
 
 PPM_IMG contrast_enhancement_c_yuv(PPM_IMG img_in) {
@@ -97,6 +97,7 @@ HSL_IMG rgb2hsl(PPM_IMG img_in) {
   img_out.s      = (float *) malloc(img_in.w * img_in.h * sizeof(float));
   img_out.l      = (unsigned char *) malloc(img_in.w * img_in.h * sizeof(unsigned char));
 
+#pragma omp parallel for private(H, S, L)
   for (i = 0; i < img_in.w * img_in.h; i++) {
     float var_r   = ((float) img_in.img_r[i] / 255);  // Convert RGB to [0,1]
     float var_g   = ((float) img_in.img_g[i] / 255);
@@ -167,6 +168,7 @@ PPM_IMG hsl2rgb(HSL_IMG img_in) {
   result.img_g = (unsigned char *) malloc(result.w * result.h * sizeof(unsigned char));
   result.img_b = (unsigned char *) malloc(result.w * result.h * sizeof(unsigned char));
 
+#pragma omp parallel for private(i)
   for (i = 0; i < img_in.width * img_in.height; i++) {
     float H = img_in.h[i];
     float S = img_in.s[i];
@@ -212,6 +214,7 @@ YUV_IMG rgb2yuv(PPM_IMG img_in) {
   img_out.img_u = (unsigned char *) malloc(sizeof(unsigned char) * img_out.w * img_out.h);
   img_out.img_v = (unsigned char *) malloc(sizeof(unsigned char) * img_out.w * img_out.h);
 
+#pragma omp parallel for private(i, r, g, b, y, cb, cr)
   for (i = 0; i < img_out.w * img_out.h; i++) {
     r = img_in.img_r[i];
     g = img_in.img_g[i];
@@ -249,6 +252,7 @@ PPM_IMG yuv2rgb(YUV_IMG img_in) {
   img_out.img_g = (unsigned char *) malloc(sizeof(unsigned char) * img_out.w * img_out.h);
   img_out.img_b = (unsigned char *) malloc(sizeof(unsigned char) * img_out.w * img_out.h);
 
+#pragma omp parallel for private(i, y, cb, cr, rt, gt, bt)
   for (i = 0; i < img_out.w * img_out.h; i++) {
     y  = (int) img_in.img_y[i];
     cb = (int) img_in.img_u[i] - 128;
