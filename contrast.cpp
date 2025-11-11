@@ -1,5 +1,6 @@
 #include "hist-equ.h"
 
+#include <mpi.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -7,9 +8,22 @@
 void run_cpu_color_test(PPM_IMG img_in);
 void run_cpu_gray_test(PGM_IMG img_in);
 
-int main() {
+int main(int argc, char ** argv) {
   PGM_IMG img_ibuf_g;
   PPM_IMG img_ibuf_c;
+
+  int numprocs, rank, namelen;
+  char processor_name[MPI_MAX_PROCESSOR_NAME];
+  int iam = 0, np = 1;
+
+  MPI_Init(&argc, &argv);
+  MPI_Comm_size(MPI_COMM_WORLD, &numprocs);
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  MPI_Get_processor_name(processor_name, &namelen);
+
+  printf("%d\n", numprocs);
+  printf("%d\n", rank);
+  printf("%s\n", processor_name);
 
   printf("Running contrast enhancement for gray-scale images.\n");
   img_ibuf_g = read_pgm("in.pgm");
@@ -29,13 +43,17 @@ void run_cpu_color_test(PPM_IMG img_in) {
 
   printf("Starting CPU processing...\n");
 
-  img_obuf_hsl = contrast_enhancement_c_hsl(img_in);
-  printf("HSL processing time: %f (ms)\n", 0.0f /* TIMER */);
+  auto start_time_hsl = MPI_Wtime();
+  img_obuf_hsl        = contrast_enhancement_c_hsl(img_in);
+  auto end_time_hsl   = MPI_Wtime();
+  printf("HSL processing time: %f (ms)\n", (end_time_hsl - start_time_hsl) * 1000.0f);
 
   write_ppm(img_obuf_hsl, "out_hsl.ppm");
 
-  img_obuf_yuv = contrast_enhancement_c_yuv(img_in);
-  printf("YUV processing time: %f (ms)\n", 0.0f /* TIMER */);
+  auto start_time_yuv = MPI_Wtime();
+  img_obuf_yuv        = contrast_enhancement_c_yuv(img_in);
+  auto end_time_yuv   = MPI_Wtime();
+  printf("YUV processing time: %f (ms)\n", (end_time_yuv - start_time_yuv) * 1000.0f);
 
   write_ppm(img_obuf_yuv, "out_yuv.ppm");
 
@@ -48,8 +66,10 @@ void run_cpu_gray_test(PGM_IMG img_in) {
 
   printf("Starting CPU processing...\n");
 
-  img_obuf = contrast_enhancement_g(img_in);
-  printf("Processing time: %f (ms)\n", 0.0f /* TIMER */);
+  auto start_time_gray = MPI_Wtime();
+  img_obuf             = contrast_enhancement_g(img_in);
+  auto end_time_gray   = MPI_Wtime();
+  printf("Processing time: %f (ms)\n", (end_time_gray - start_time_gray) * 1000.0f);
 
   write_pgm(img_obuf, "out.pgm");
   free_pgm(img_obuf);
