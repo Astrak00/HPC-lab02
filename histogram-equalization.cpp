@@ -1,13 +1,16 @@
 #include "hist-equ.h"
 
+#include <chrono>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 void histogram(int * hist_out, unsigned char * img_in, int img_size, int nbr_bin) {
   int i;
+#pragma omp parallel for
   for (i = 0; i < nbr_bin; i++) { hist_out[i] = 0; }
 
+#pragma omp parallel for reduction(+ : hist_out[ : nbr_bin])
   for (i = 0; i < img_size; i++) { hist_out[img_in[i]]++; }
 }
 
@@ -21,6 +24,7 @@ void histogram_equalization(unsigned char * img_out, unsigned char * img_in, int
   i   = 0;
   while (min == 0) { min = hist_in[i++]; }
   d = img_size - min;
+  // #pragma omp parallel No se puede reduction(+ : cdf) porque se depende de cdf en cada iteracion
   for (i = 0; i < nbr_bin; i++) {
     cdf += hist_in[i];
     // lut[i] = (cdf - min)*(nbr_bin - 1)/d;
@@ -28,7 +32,8 @@ void histogram_equalization(unsigned char * img_out, unsigned char * img_in, int
     if (lut[i] < 0) { lut[i] = 0; }
   }
 
-  /* Get the result image */
+/* Get the result image */
+#pragma omp parallel for
   for (i = 0; i < img_size; i++) {
     if (lut[img_in[i]] > 255) {
       img_out[i] = 255;
