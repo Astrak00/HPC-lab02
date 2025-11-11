@@ -1,5 +1,6 @@
 #include "hist-equ.h"
 
+#include <chrono>
 #include <mpi.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -12,28 +13,25 @@ int main(int argc, char ** argv) {
   PGM_IMG img_ibuf_g;
   PPM_IMG img_ibuf_c;
 
-  int numprocs, rank, namelen;
-  char processor_name[MPI_MAX_PROCESSOR_NAME];
-  int iam = 0, np = 1;
+  int numprocs, rank;
 
-  MPI_Init(&argc, &argv);
+  MPI_Init(NULL, NULL);
   MPI_Comm_size(MPI_COMM_WORLD, &numprocs);
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-  MPI_Get_processor_name(processor_name, &namelen);
-
-  printf("%d\n", numprocs);
-  printf("%d\n", rank);
-  printf("%s\n", processor_name);
 
   printf("Running contrast enhancement for gray-scale images.\n");
   img_ibuf_g = read_pgm("in.pgm");
   run_cpu_gray_test(img_ibuf_g);
   free_pgm(img_ibuf_g);
 
+  MPI_Barrier(MPI_COMM_WORLD);
+
   printf("Running contrast enhancement for color images.\n");
   img_ibuf_c = read_ppm("in.ppm");
   run_cpu_color_test(img_ibuf_c);
   free_ppm(img_ibuf_c);
+
+  MPI_Finalize();
 
   return 0;
 }
@@ -43,17 +41,19 @@ void run_cpu_color_test(PPM_IMG img_in) {
 
   printf("Starting CPU processing...\n");
 
-  auto start_time_hsl = MPI_Wtime();
+  auto start_time_hsl = std::chrono::high_resolution_clock::now();
   img_obuf_hsl        = contrast_enhancement_c_hsl(img_in);
-  auto end_time_hsl   = MPI_Wtime();
-  printf("HSL processing time: %f (ms)\n", (end_time_hsl - start_time_hsl) * 1000.0f);
+  auto end_time_hsl   = std::chrono::high_resolution_clock::now();
+  printf("HSL processing time: %f (ms)\n",
+         std::chrono::duration<double, std::milli>(end_time_hsl - start_time_hsl).count());
 
   write_ppm(img_obuf_hsl, "out_hsl.ppm");
 
-  auto start_time_yuv = MPI_Wtime();
+  auto start_time_yuv = std::chrono::high_resolution_clock::now();
   img_obuf_yuv        = contrast_enhancement_c_yuv(img_in);
-  auto end_time_yuv   = MPI_Wtime();
-  printf("YUV processing time: %f (ms)\n", (end_time_yuv - start_time_yuv) * 1000.0f);
+  auto end_time_yuv   = std::chrono::high_resolution_clock::now();
+  printf("YUV processing time: %f (ms)\n",
+         std::chrono::duration<double, std::milli>(end_time_yuv - start_time_yuv).count());
 
   write_ppm(img_obuf_yuv, "out_yuv.ppm");
 
@@ -66,10 +66,11 @@ void run_cpu_gray_test(PGM_IMG img_in) {
 
   printf("Starting CPU processing...\n");
 
-  auto start_time_gray = MPI_Wtime();
+  auto start_time_gray = std::chrono::high_resolution_clock::now();
   img_obuf             = contrast_enhancement_g(img_in);
-  auto end_time_gray   = MPI_Wtime();
-  printf("Processing time: %f (ms)\n", (end_time_gray - start_time_gray) * 1000.0f);
+  auto end_time_gray   = std::chrono::high_resolution_clock::now();
+  printf("Processing time: %f (ms)\n",
+         std::chrono::duration<double, std::milli>(end_time_gray - start_time_gray).count());
 
   write_pgm(img_obuf, "out.pgm");
   free_pgm(img_obuf);

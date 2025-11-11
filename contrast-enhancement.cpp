@@ -20,7 +20,6 @@ PGM_IMG contrast_enhancement_g(PGM_IMG img_in) {
 // PPM_IMG contrast_enhancement_c_rgb(PPM_IMG img_in) {
 //   PPM_IMG result;
 //   int hist[256];
-
 //   result.w     = img_in.w;
 //   result.h     = img_in.h;
 //   result.img_r = (unsigned char *) malloc(result.w * result.h * sizeof(unsigned char));
