@@ -5,4 +5,4 @@ compile:
 	cd build && make -j && cd ..
 
 run:
-	mpirun -N 4 ./build/contrast
+	mpirun -N 3 ./build/contrast

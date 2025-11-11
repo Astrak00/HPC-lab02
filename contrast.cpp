@@ -14,22 +14,21 @@ int main(int argc, char ** argv) {
   PPM_IMG img_ibuf_c;
 
   int numprocs, rank;
-
   MPI_Init(NULL, NULL);
   MPI_Comm_size(MPI_COMM_WORLD, &numprocs);
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-  printf("Running contrast enhancement for gray-scale images.\n");
-  img_ibuf_g = read_pgm("in.pgm");
-  run_cpu_gray_test(img_ibuf_g);
-  free_pgm(img_ibuf_g);
-
-  MPI_Barrier(MPI_COMM_WORLD);
-
-  printf("Running contrast enhancement for color images.\n");
-  img_ibuf_c = read_ppm("in.ppm");
-  run_cpu_color_test(img_ibuf_c);
-  free_ppm(img_ibuf_c);
+  if (rank == 0) {
+    printf("Running contrast enhancement for gray-scale images.\n");
+    img_ibuf_g = read_pgm("in.pgm");
+    run_cpu_gray_test(img_ibuf_g);
+    free_pgm(img_ibuf_g);
+  } else {
+    printf("Running contrast enhancement for color images.\n");
+    img_ibuf_c = read_ppm("in.ppm");
+    run_cpu_color_test(img_ibuf_c);
+    free_ppm(img_ibuf_c);
+  }
 
   MPI_Finalize();
 
@@ -39,26 +38,31 @@ int main(int argc, char ** argv) {
 void run_cpu_color_test(PPM_IMG img_in) {
   PPM_IMG img_obuf_hsl, img_obuf_yuv;
 
-  printf("Starting CPU processing...\n");
+  int rank;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-  auto start_time_hsl = std::chrono::high_resolution_clock::now();
-  img_obuf_hsl        = contrast_enhancement_c_hsl(img_in);
-  auto end_time_hsl   = std::chrono::high_resolution_clock::now();
-  printf("HSL processing time: %f (ms)\n",
-         std::chrono::duration<double, std::milli>(end_time_hsl - start_time_hsl).count());
+  if (rank == 1) {
+    printf("Starting CPU processing hsl ...\n");
 
-  write_ppm(img_obuf_hsl, "out_hsl.ppm");
+    auto start_time_hsl = std::chrono::high_resolution_clock::now();
+    img_obuf_hsl        = contrast_enhancement_c_hsl(img_in);
+    auto end_time_hsl   = std::chrono::high_resolution_clock::now();
+    printf("HSL processing time: %f (ms)\n",
+           std::chrono::duration<double, std::milli>(end_time_hsl - start_time_hsl).count());
 
-  auto start_time_yuv = std::chrono::high_resolution_clock::now();
-  img_obuf_yuv        = contrast_enhancement_c_yuv(img_in);
-  auto end_time_yuv   = std::chrono::high_resolution_clock::now();
-  printf("YUV processing time: %f (ms)\n",
-         std::chrono::duration<double, std::milli>(end_time_yuv - start_time_yuv).count());
+    write_ppm(img_obuf_hsl, "out_hsl.ppm");
+    free_ppm(img_obuf_hsl);
+  } else {
+    printf("Starting CPU processing yuv ...\n");
+    auto start_time_yuv = std::chrono::high_resolution_clock::now();
+    img_obuf_yuv        = contrast_enhancement_c_yuv(img_in);
+    auto end_time_yuv   = std::chrono::high_resolution_clock::now();
+    printf("YUV processing time: %f (ms)\n",
+           std::chrono::duration<double, std::milli>(end_time_yuv - start_time_yuv).count());
 
-  write_ppm(img_obuf_yuv, "out_yuv.ppm");
-
-  free_ppm(img_obuf_hsl);
-  free_ppm(img_obuf_yuv);
+    write_ppm(img_obuf_yuv, "out_yuv.ppm");
+    free_ppm(img_obuf_yuv);
+  }
 }
 
 void run_cpu_gray_test(PGM_IMG img_in) {

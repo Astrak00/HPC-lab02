@@ -1,6 +1,5 @@
 #include "hist-equ.h"
 
-#include <mpi.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -9,20 +8,8 @@ void histogram(int * hist_out, unsigned char * img_in, int img_size, int nbr_bin
   int i;
   for (i = 0; i < nbr_bin; i++) { hist_out[i] = 0; }
   // memset(hist_out, 0, sizeof(int) * nbr_bin);
-  int numprocs, rank;
 
-  MPI_Comm_size(MPI_COMM_WORLD, &numprocs);
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-
-  for (i = rank * (img_size / numprocs); i < (rank + 1) * (img_size / numprocs); i++) {
-    hist_out[img_in[i]]++;
-  }
-
-  // Combine all histograms
-  int * global_hist = (int *) malloc(sizeof(int) * nbr_bin);
-  MPI_Reduce(hist_out, global_hist, nbr_bin, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
-  memcpy(hist_out, global_hist, sizeof(int) * nbr_bin);
-  free(global_hist);
+  for (i = 0; i < img_size; i++) { hist_out[img_in[i]]++; }
 }
 
 void histogram_equalization(unsigned char * img_out, unsigned char * img_in, int * hist_in,
