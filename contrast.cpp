@@ -1,7 +1,6 @@
 #include "hist-equ.h"
 
 #include <chrono>
-#include <mpi.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -12,15 +11,6 @@ void run_cpu_gray_test(PGM_IMG img_in);
 int main(int argc, char ** argv) {
   PGM_IMG img_ibuf_g;
   PPM_IMG img_ibuf_c;
-
-  int numprocs, rank, namelen;
-  char processor_name[MPI_MAX_PROCESSOR_NAME];
-  int iam = 0, np = 1;
-
-  MPI_Init(&argc, &argv);
-  MPI_Comm_size(MPI_COMM_WORLD, &numprocs);
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-  MPI_Get_processor_name(processor_name, &namelen);
 
   printf("Running contrast enhancement for gray-scale images.\n");
   img_ibuf_g = read_pgm("in.pgm");
@@ -40,17 +30,17 @@ void run_cpu_color_test(PPM_IMG img_in) {
 
   printf("Starting CPU processing...\n");
 
-  auto tstart = MPI_Wtime();
+  auto tstart = std::chrono::high_resolution_clock::now();
 
   img_obuf_hsl = contrast_enhancement_c_hsl(img_in);
 
-  auto tend = MPI_Wtime();
-  printf("HSL processing time: %f (ms)\n", (tend - tstart) * 1000);
+  auto tend = std::chrono::high_resolution_clock::now();
+  printf("HSL processing time: %f (ms)\n", std::chrono::duration<double, std::milli>(tend - tstart).count());
 
-  auto tstart_yuv = MPI_Wtime();
+  auto tstart_yuv = std::chrono::high_resolution_clock::now();
   write_ppm(img_obuf_hsl, "out_hsl.ppm");
-  auto tend_yuv = MPI_Wtime();
-  printf("YUV processing time: %f (ms)\n", (tend_yuv - tstart_yuv) * 1000);
+  auto tend_yuv = std::chrono::high_resolution_clock::now();
+  printf("YUV processing time: %f (ms)\n", std::chrono::duration<double, std::milli>(tend_yuv - tstart_yuv).count());
 
   img_obuf_yuv = contrast_enhancement_c_yuv(img_in);
 
@@ -64,12 +54,12 @@ void run_cpu_gray_test(PGM_IMG img_in) {
   PGM_IMG img_obuf;
 
   printf("Starting CPU processing...\n");
-  auto tstart = MPI_Wtime();
+  auto tstart = std::chrono::high_resolution_clock::now();
 
   img_obuf = contrast_enhancement_g(img_in);
 
-  auto tend = MPI_Wtime();
-  printf("Processing time: %f (ms)\n", (tend - tstart) * 1000);
+  auto tend = std::chrono::high_resolution_clock::now();
+  printf("Processing time: %f (ms)\n", std::chrono::duration<double, std::milli>(tend - tstart).count());
 
   write_pgm(img_obuf, "out.pgm");
   free_pgm(img_obuf);
@@ -103,7 +93,7 @@ PPM_IMG read_ppm(char const * path) {
 
   fread(ibuf, sizeof(unsigned char), 3 * result.w * result.h, in_file);
 
-// #pragma omp parallel for private(i)
+  // #pragma omp parallel for private(i)
   for (i = 0; i < result.w * result.h; i++) {
     result.img_r[i] = ibuf[3 * i + 0];
     result.img_g[i] = ibuf[3 * i + 1];
@@ -122,7 +112,7 @@ void write_ppm(PPM_IMG img, char const * path) {
 
   char * obuf = (char *) malloc(3 * img.w * img.h * sizeof(char));
 
-// #pragma omp parallel for private(i)
+  // #pragma omp parallel for private(i)
   for (i = 0; i < img.w * img.h; i++) {
     obuf[3 * i + 0] = img.img_r[i];
     obuf[3 * i + 1] = img.img_g[i];
