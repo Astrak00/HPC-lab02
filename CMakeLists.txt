@@ -5,26 +5,41 @@ project(
   VERSION 1.0
   LANGUAGES CXX)
 
-
-find_package(MPI)
-
+# --- Find OpenMP (this part was working) ---
 find_package(OpenMP)
 if (OPENMP_FOUND)
-    set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
-    set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
-    set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
-    message(STATUS "OpenMP C flags: ${OpenMP_C_FLAGS}")
-    message(STATUS "OpenMP CXX flags: ${OpenMP_CXX_FLAGS}")
-    message(STATUS "OpenMP EXE linker flags: ${OpenMP_EXE_LINKER_FLAGS}")
+  message(STATUS "OpenMP found, will add flags.")
+else()
+  message(WARNING "OpenMP not found.")
 endif()
 
-set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -march=native")
+# --- Define Target ---
+add_executable(
+  contrast
+  contrast-enhancement.cpp
+  histogram-equalization.cpp
+  contrast.cpp)
 
-message(STATUS "${CMAKE_CXX_FLAGS}")
+# --- Add Optimization Flags ---
+target_compile_options(contrast PRIVATE -O3 -march=native)
 
+# --- Manually Add MPI Settings ---
+# We are hard-coding what 'mpicxx.mpich -show' told us.
+# No find_package(MPI)!
 
-include_directories(SYSTEM ${MPI_INCLUDE_PATH})
+# Add Include Directory: -I/usr/include/x86_64-linux-gnu/mpich
+target_include_directories(contrast PUBLIC /usr/include/x86_64-linux-gnu/mpich)
 
-add_executable(contrast contrast-enhancement.cpp histogram-equalization.cpp  contrast.cpp)
+# Add Link Directory: -L/usr/lib/x86_64-linux-gnu
+target_link_directories(contrast PUBLIC /usr/lib/x86_64-linux-gnu)
 
-target_link_libraries(contrast ${MPI_C_LIBRARIES})
+# Add Linker Flag: -Wl,-z,relro
+target_link_options(contrast PUBLIC "-Wl,-z,relro")
+
+# Add Link Libraries: -lmpichcxx -lmpich
+target_link_libraries(contrast PUBLIC mpichcxx mpich ucp ucs hwloc pthread rt)
+# --- Link OpenMP ---
+# If OpenMP was found, link it too
+if (OPENMP_FOUND)
+  target_link_libraries(contrast PUBLIC OpenMP::OpenMP_CXX)
+endif()

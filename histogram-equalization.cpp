@@ -4,6 +4,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+
+// Add here SIMD,
 void histogram(int * hist_out, unsigned char * img_in, int img_size, int nbr_bin) {
   int i;
 #pragma omp parallel for

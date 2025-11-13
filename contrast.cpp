@@ -10,6 +10,8 @@ void run_cpu_color_test(PPM_IMG img_in);
 void run_cpu_gray_test(PGM_IMG img_in);
 
 int main(int argc, char ** argv) {
+  PGM_IMG img_ibuf_g_complete;
+  PPM_IMG img_ibuf_c_complete;
   PGM_IMG img_ibuf_g;
   PPM_IMG img_ibuf_c;
 
@@ -18,19 +20,72 @@ int main(int argc, char ** argv) {
   MPI_Comm_size(MPI_COMM_WORLD, &numprocs);
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
+  // Para una parte 2:
+  // Hacer chunks,
+  // Hacer que cada uno escriba su chunk - SI, hacer que lea, si es 256 lineas, y 4 procesos, 65 + 3 cada uno.
+  // Puede que no haya que hacer un scatter. Si hacemos lecturas distribuidas mejor. 
+  printf("Number of processes: %d - Rank: %d\n", numprocs, rank);
+  
   if (rank == 0) {
-    printf("Running contrast enhancement for gray-scale images.\n");
-    img_ibuf_g = read_pgm("in.pgm");
-    run_cpu_gray_test(img_ibuf_g);
-    free_pgm(img_ibuf_g);
-  } else {
-    printf("Running contrast enhancement for color images.\n");
-    img_ibuf_c = read_ppm("in.ppm");
-    run_cpu_color_test(img_ibuf_c);
-    free_ppm(img_ibuf_c);
+    img_ibuf_g_complete = read_pgm("in.pgm");
+    img_ibuf_c_complete = read_ppm("in.ppm");
+    img_ibuf_g.w = img_ibuf_g_complete.w / numprocs;
+    img_ibuf_g.h = img_ibuf_g_complete.h;
+    img_ibuf_c.w = img_ibuf_c_complete.w / numprocs;
+    img_ibuf_c.h = img_ibuf_c_complete.h;
   }
 
+  MPI_Bcast(&img_ibuf_g.w, 1, MPI_INT, 0, MPI_COMM_WORLD);
+  MPI_Bcast(&img_ibuf_g.h, 1, MPI_INT, 0, MPI_COMM_WORLD);
+  MPI_Bcast(&img_ibuf_c.w, 1, MPI_INT, 0, MPI_COMM_WORLD);
+  MPI_Bcast(&img_ibuf_c.h, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+  // Allocate memory for receive buffers on all ranks
+  img_ibuf_g.img = (unsigned char *) malloc(img_ibuf_g.w * img_ibuf_g.h * sizeof(unsigned char));
+  img_ibuf_c.img_r = (unsigned char *) malloc(img_ibuf_c.w * img_ibuf_c.h * sizeof(unsigned char));
+  img_ibuf_c.img_g = (unsigned char *) malloc(img_ibuf_c.w * img_ibuf_c.h * sizeof(unsigned char));
+  img_ibuf_c.img_b = (unsigned char *) malloc(img_ibuf_c.w * img_ibuf_c.h * sizeof(unsigned char));
+
+  // Copy the image data to all processes
+  int chunk_size_g = img_ibuf_g.w * img_ibuf_g.h;
+  int chunk_size_c = img_ibuf_c.w * img_ibuf_c.h;
+
+  MPI_Scatter(rank == 0 ? img_ibuf_g_complete.img : NULL, chunk_size_g, MPI_UNSIGNED_CHAR,
+              img_ibuf_g.img, chunk_size_g, MPI_UNSIGNED_CHAR, 0,
+              MPI_COMM_WORLD);
+
+  MPI_Scatter(rank == 0 ? img_ibuf_c_complete.img_r : NULL, chunk_size_c, MPI_UNSIGNED_CHAR,
+              img_ibuf_c.img_r, chunk_size_c, MPI_UNSIGNED_CHAR, 0,
+              MPI_COMM_WORLD);
+
+  MPI_Scatter(rank == 0 ? img_ibuf_c_complete.img_g : NULL, chunk_size_c, MPI_UNSIGNED_CHAR,
+              img_ibuf_c.img_g, chunk_size_c, MPI_UNSIGNED_CHAR, 0,
+              MPI_COMM_WORLD);
+
+  MPI_Scatter(rank == 0 ? img_ibuf_c_complete.img_b : NULL, chunk_size_c, MPI_UNSIGNED_CHAR,
+              img_ibuf_c.img_b, chunk_size_c, MPI_UNSIGNED_CHAR, 0,
+              MPI_COMM_WORLD);
+
+
+  printf("Running contrast enhancement for gray-scale images.\n");
+  run_cpu_gray_test(img_ibuf_g);
+  printf("Running contrast enhancement for color images.\n");
+  run_cpu_color_test(img_ibuf_c);
+
+
   MPI_Finalize();
+  
+  // Free chunk buffers
+  free(img_ibuf_g.img);
+  free(img_ibuf_c.img_r);
+  free(img_ibuf_c.img_g);
+  free(img_ibuf_c.img_b);
+
+  // Free complete images only on rank 0
+  if (rank == 0) {
+    free_pgm(img_ibuf_g_complete);
+    free_ppm(img_ibuf_c_complete);
+  }
 
   return 0;
 }
@@ -41,42 +96,44 @@ void run_cpu_color_test(PPM_IMG img_in) {
   int rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-  if (rank == 1) {
-    printf("Starting CPU processing hsl ...\n");
+  printf("Starting CPU processing hsl ...\n");
 
-    auto start_time_hsl = std::chrono::high_resolution_clock::now();
-    img_obuf_hsl        = contrast_enhancement_c_hsl(img_in);
-    auto end_time_hsl   = std::chrono::high_resolution_clock::now();
-    printf("HSL processing time: %f (ms)\n",
-           std::chrono::duration<double, std::milli>(end_time_hsl - start_time_hsl).count());
+  auto start_time_hsl = MPI_Wtime();
+  img_obuf_hsl        = contrast_enhancement_c_hsl(img_in);
+  auto end_time_hsl   = MPI_Wtime();
+  printf("HSL processing time: %f (ms)\n", (end_time_hsl - start_time_hsl) * 1000);
 
-    write_ppm(img_obuf_hsl, "out_hsl.ppm");
-    free_ppm(img_obuf_hsl);
-  } else {
-    printf("Starting CPU processing yuv ...\n");
-    auto start_time_yuv = std::chrono::high_resolution_clock::now();
-    img_obuf_yuv        = contrast_enhancement_c_yuv(img_in);
-    auto end_time_yuv   = std::chrono::high_resolution_clock::now();
-    printf("YUV processing time: %f (ms)\n",
-           std::chrono::duration<double, std::milli>(end_time_yuv - start_time_yuv).count());
+  // write_ppm(img_obuf_hsl, "out_hsl.ppm");
+  free_ppm(img_obuf_hsl);
+  printf("Starting CPU processing yuv ...\n");
+  auto start_time_yuv = MPI_Wtime();
+  img_obuf_yuv        = contrast_enhancement_c_yuv(img_in);
+  auto end_time_yuv   = MPI_Wtime();
+  printf("YUV processing time: %f (ms)\n", (end_time_yuv - start_time_yuv) * 1000);
 
-    write_ppm(img_obuf_yuv, "out_yuv.ppm");
-    free_ppm(img_obuf_yuv);
-  }
+  // write_ppm(img_obuf_yuv, "out_yuv.ppm");
+  free_ppm(img_obuf_yuv);
+  
 }
 
 void run_cpu_gray_test(PGM_IMG img_in) {
   PGM_IMG img_obuf;
 
+  int rank;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
   printf("Starting CPU processing...\n");
 
-  auto start_time_gray = std::chrono::high_resolution_clock::now();
+  auto start_time_gray = MPI_Wtime();
   img_obuf             = contrast_enhancement_g(img_in);
-  auto end_time_gray   = std::chrono::high_resolution_clock::now();
-  printf("Processing time: %f (ms)\n",
-         std::chrono::duration<double, std::milli>(end_time_gray - start_time_gray).count());
+  auto end_time_gray   = MPI_Wtime();
+  printf("Processing time: %f (ms)\n", (end_time_gray - start_time_gray) * 1000);
 
-  write_pgm(img_obuf, "out.pgm");
+  if (rank == 0) {
+    printf("Finished CPU processing.\n");
+  }
+
+  // write_pgm(img_obuf, "out.pgm");
   free_pgm(img_obuf);
 }
 
