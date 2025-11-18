@@ -5,5 +5,10 @@ compile:
 	cd build && make -j && cd ..
 
 run:
-	mpirun -np 4 ./contrast
+	srun mpirun -np 4 ./build/contrast
 
+run-single:
+	srun -p gpus ./build/contrast
+
+test:
+	./tests_diff_images.sh
