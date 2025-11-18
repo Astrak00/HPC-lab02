@@ -7,10 +7,10 @@
 
 void histogram(int * hist_out, unsigned char * img_in, int img_size, int nbr_bin) {
   int i;
-#pragma omp parallel for
+#pragma omp parallel for // quizás simd al ser un bucle simple
   for (i = 0; i < nbr_bin; i++) { hist_out[i] = 0; }
 
-#pragma omp parallel for reduction(+ : hist_out[ : nbr_bin])
+#pragma omp parallel for reduction(+ : hist_out[ : nbr_bin]) // quizás simd+parallel for al ser un bucle grande
   for (i = 0; i < img_size; i++) { hist_out[img_in[i]]++; }
 }
 
@@ -33,7 +33,7 @@ void histogram_equalization(unsigned char * img_out, unsigned char * img_in, int
   }
 
 /* Get the result image */
-#pragma omp parallel for
+#pragma omp parallel for // for+simd al ser un bucle grande
   for (i = 0; i < img_size; i++) {
     if (lut[img_in[i]] > 255) {
       img_out[i] = 255;
