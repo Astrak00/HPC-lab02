@@ -29,18 +29,21 @@ int main(int argc, char ** argv) {
   if (rank == 0) {
     img_ibuf_g_complete = read_pgm("in.pgm");
     img_ibuf_c_complete = read_ppm("in.ppm");
-    img_ibuf_g.w = img_ibuf_g_complete.w / numprocs;
-    img_ibuf_g.h = img_ibuf_g_complete.h;
-    img_ibuf_c.w = img_ibuf_c_complete.w / numprocs;
-    img_ibuf_c.h = img_ibuf_c_complete.h;
+    img_ibuf_g.w = img_ibuf_g_complete.w;
+    img_ibuf_g.h = img_ibuf_g_complete.h / numprocs;
+    img_ibuf_c.w = img_ibuf_c_complete.w;
+    img_ibuf_c.h = img_ibuf_c_complete.h / numprocs;
   }
 
+  printf("%d", img_ibuf_g_complete.w / numprocs);
+
+  // enviar un vector de un golpe
   MPI_Bcast(&img_ibuf_g.w, 1, MPI_INT, 0, MPI_COMM_WORLD);
   MPI_Bcast(&img_ibuf_g.h, 1, MPI_INT, 0, MPI_COMM_WORLD);
   MPI_Bcast(&img_ibuf_c.w, 1, MPI_INT, 0, MPI_COMM_WORLD);
   MPI_Bcast(&img_ibuf_c.h, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
-  // Allocate memory for receive buffers on all ranks
+  // Cambiar a vector de img_g para hacer un solo malloc o un * muy grande.
   img_ibuf_g.img = (unsigned char *) malloc(img_ibuf_g.w * img_ibuf_g.h * sizeof(unsigned char));
   img_ibuf_c.img_r = (unsigned char *) malloc(img_ibuf_c.w * img_ibuf_c.h * sizeof(unsigned char));
   img_ibuf_c.img_g = (unsigned char *) malloc(img_ibuf_c.w * img_ibuf_c.h * sizeof(unsigned char));
@@ -50,10 +53,12 @@ int main(int argc, char ** argv) {
   int chunk_size_g = img_ibuf_g.w * img_ibuf_g.h;
   int chunk_size_c = img_ibuf_c.w * img_ibuf_c.h;
 
+  // Grey
   MPI_Scatter(rank == 0 ? img_ibuf_g_complete.img : NULL, chunk_size_g, MPI_UNSIGNED_CHAR,
               img_ibuf_g.img, chunk_size_g, MPI_UNSIGNED_CHAR, 0,
               MPI_COMM_WORLD);
 
+  // Color
   MPI_Scatter(rank == 0 ? img_ibuf_c_complete.img_r : NULL, chunk_size_c, MPI_UNSIGNED_CHAR,
               img_ibuf_c.img_r, chunk_size_c, MPI_UNSIGNED_CHAR, 0,
               MPI_COMM_WORLD);
@@ -117,12 +122,14 @@ void run_cpu_color_test(PPM_IMG img_in) {
 }
 
 void run_cpu_gray_test(PGM_IMG img_in) {
-  PGM_IMG img_obuf;
-
-  int rank;
+  int rank, numprocs;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  MPI_Comm_size(MPI_COMM_WORLD, &numprocs);
 
-  printf("Starting CPU processing...\n");
+  PGM_IMG img_obuf;
+  PGM_IMG img_obuf_complete;
+
+  printf("Starting CPU processing, on rank %d of %d\n", rank, numprocs);
 
   auto start_time_gray = MPI_Wtime();
   img_obuf             = contrast_enhancement_g(img_in);
@@ -130,10 +137,19 @@ void run_cpu_gray_test(PGM_IMG img_in) {
   printf("Processing time: %f (ms)\n", (end_time_gray - start_time_gray) * 1000);
 
   if (rank == 0) {
-    printf("Finished CPU processing.\n");
+    printf("Finished CPU processing gray.\n");
+    img_obuf_complete.w   = img_in.w;
+    img_obuf_complete.h   = img_in.h * numprocs;
+    img_obuf_complete.img = (unsigned char *) malloc(img_obuf_complete.w * img_obuf_complete.h * sizeof(unsigned char));
   }
 
-  // write_pgm(img_obuf, "out.pgm");
+  MPI_Gather(img_obuf.img, img_obuf.w * img_obuf.h, MPI_UNSIGNED_CHAR, img_obuf_complete.img, img_obuf.w * img_obuf.h, MPI_UNSIGNED_CHAR, 0, MPI_COMM_WORLD);
+  
+  if (rank == 0) {
+    write_pgm(img_obuf_complete, "out.pgm");
+    free_pgm(img_obuf_complete);
+  }
+
   free_pgm(img_obuf);
 }
 

@@ -5,4 +5,7 @@ compile:
 	cd build && make -j && cd ..
 
 run:
-	mpirun.mpich -n 3 ./build/contrast
+	mpirun.mpich -n 4 ./build/contrast
+
+run-dist:
+	srun -p gpus -N 4 -n 48 -mpi=mpi ./build/contrast
