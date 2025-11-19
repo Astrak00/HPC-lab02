@@ -40,8 +40,8 @@ int main(int argc, char ** argv) {
   int dimensions[2] = {total_w, total_h};
   MPI_Bcast(dimensions, 2, MPI_INT, 0, MPI_COMM_WORLD);
 
-  img_ibuf_g.w   = dimensions[0];
-  d img_ibuf_c.w = dimensions[0];
+  img_ibuf_g.w = dimensions[0];
+  img_ibuf_c.w = dimensions[0];
 
   int rows_per_proc = dimensions[1] / numprocs;
   int remainder     = dimensions[1] % numprocs;
