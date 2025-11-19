@@ -49,10 +49,13 @@ int main(int argc, char ** argv) {
   img_ibuf_c.h      = img_ibuf_g.h;
 
   // Cambiar a vector de img_g para hacer un solo malloc o un * muy grande.
-  img_ibuf_g.img   = (unsigned char *) malloc(img_ibuf_g.w * img_ibuf_g.h * sizeof(unsigned char));
-  img_ibuf_c.img_r = (unsigned char *) malloc(img_ibuf_c.w * img_ibuf_c.h * sizeof(unsigned char));
-  img_ibuf_c.img_g = (unsigned char *) malloc(img_ibuf_c.w * img_ibuf_c.h * sizeof(unsigned char));
-  img_ibuf_c.img_b = (unsigned char *) malloc(img_ibuf_c.w * img_ibuf_c.h * sizeof(unsigned char));
+  int const grey_dim = img_ibuf_g.w * img_ibuf_g.h;
+  img_ibuf_g.img     = (unsigned char *) malloc(grey_dim * sizeof(unsigned char));
+
+  int const color_dim = img_ibuf_c.w * img_ibuf_c.h;
+  img_ibuf_c.img_r    = (unsigned char *) malloc(color_dim * 3 * sizeof(unsigned char));
+  img_ibuf_c.img_g    = img_ibuf_c.img_r + color_dim;
+  img_ibuf_c.img_b    = img_ibuf_c.img_r + 2 * color_dim;
 
   int * sendcounts = NULL;  // This array holds the number of elements to send to each process
   int * displs     = NULL;  // This array holds the displacements for each process
@@ -75,17 +78,17 @@ int main(int argc, char ** argv) {
   // sendcounts and displs are only valid on rank 0, and NULL on other ranks.
   // they show how many elements to send to each process, and the displacement in the source array.
   MPI_Scatterv(rank == 0 ? img_ibuf_g_complete.img : NULL, sendcounts, displs, MPI_UNSIGNED_CHAR,
-               img_ibuf_g.img, img_ibuf_g.w * img_ibuf_g.h, MPI_UNSIGNED_CHAR, 0, MPI_COMM_WORLD);
+               img_ibuf_g.img, grey_dim, MPI_UNSIGNED_CHAR, 0, MPI_COMM_WORLD);
 
   // Color
   MPI_Scatterv(rank == 0 ? img_ibuf_c_complete.img_r : NULL, sendcounts, displs, MPI_UNSIGNED_CHAR,
-               img_ibuf_c.img_r, img_ibuf_c.w * img_ibuf_c.h, MPI_UNSIGNED_CHAR, 0, MPI_COMM_WORLD);
+               img_ibuf_c.img_r, color_dim, MPI_UNSIGNED_CHAR, 0, MPI_COMM_WORLD);
 
   MPI_Scatterv(rank == 0 ? img_ibuf_c_complete.img_g : NULL, sendcounts, displs, MPI_UNSIGNED_CHAR,
-               img_ibuf_c.img_g, img_ibuf_c.w * img_ibuf_c.h, MPI_UNSIGNED_CHAR, 0, MPI_COMM_WORLD);
+               img_ibuf_c.img_g, color_dim, MPI_UNSIGNED_CHAR, 0, MPI_COMM_WORLD);
 
   MPI_Scatterv(rank == 0 ? img_ibuf_c_complete.img_b : NULL, sendcounts, displs, MPI_UNSIGNED_CHAR,
-               img_ibuf_c.img_b, img_ibuf_c.w * img_ibuf_c.h, MPI_UNSIGNED_CHAR, 0, MPI_COMM_WORLD);
+               img_ibuf_c.img_b, color_dim, MPI_UNSIGNED_CHAR, 0, MPI_COMM_WORLD);
 
   if (rank == 0) {
     free(sendcounts);
@@ -102,8 +105,6 @@ int main(int argc, char ** argv) {
   // Free chunk buffers
   free(img_ibuf_g.img);
   free(img_ibuf_c.img_r);
-  free(img_ibuf_c.img_g);
-  free(img_ibuf_c.img_b);
 
   // Free complete images only on rank 0
   if (rank == 0) {
@@ -133,14 +134,14 @@ void run_cpu_color_test(PPM_IMG img_in) {
   MPI_Allreduce(&img_in.h, &total_h, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
 
   if (rank == 0) {
-    img_obuf_hsl_complete.w     = img_in.w;
-    img_obuf_hsl_complete.h     = total_h;
-    img_obuf_hsl_complete.img_r = (unsigned char *) malloc(
-        img_obuf_hsl_complete.w * img_obuf_hsl_complete.h * sizeof(unsigned char));
-    img_obuf_hsl_complete.img_g = (unsigned char *) malloc(
-        img_obuf_hsl_complete.w * img_obuf_hsl_complete.h * sizeof(unsigned char));
-    img_obuf_hsl_complete.img_b = (unsigned char *) malloc(
-        img_obuf_hsl_complete.w * img_obuf_hsl_complete.h * sizeof(unsigned char));
+    img_obuf_hsl_complete.w = img_in.w;
+    img_obuf_hsl_complete.h = total_h;
+    int img_complete_dim    = img_obuf_hsl_complete.w * img_obuf_hsl_complete.h;
+
+    img_obuf_hsl_complete.img_r =
+        (unsigned char *) malloc(img_complete_dim * 3 * sizeof(unsigned char));
+    img_obuf_hsl_complete.img_g = img_obuf_hsl_complete.img_r + img_complete_dim;
+    img_obuf_hsl_complete.img_b = img_obuf_hsl_complete.img_r + 2 * img_complete_dim;
   }
 
   int * recvcounts = NULL;
@@ -171,7 +172,7 @@ void run_cpu_color_test(PPM_IMG img_in) {
 
   if (rank == 0) {
     write_ppm(img_obuf_hsl_complete, "out_hsl.ppm");
-    free_ppm(img_obuf_hsl_complete);
+    free(img_obuf_hsl_complete.img_r);
   }
   free_ppm(img_obuf_hsl);
 
@@ -182,14 +183,13 @@ void run_cpu_color_test(PPM_IMG img_in) {
   printf("YUV processing time: %f (ms)\n", (end_time_yuv - start_time_yuv) * 1000);
 
   if (rank == 0) {
-    img_obuf_yuv_complete.w     = img_in.w;
-    img_obuf_yuv_complete.h     = total_h;
-    img_obuf_yuv_complete.img_r = (unsigned char *) malloc(
-        img_obuf_yuv_complete.w * img_obuf_yuv_complete.h * sizeof(unsigned char));
-    img_obuf_yuv_complete.img_g = (unsigned char *) malloc(
-        img_obuf_yuv_complete.w * img_obuf_yuv_complete.h * sizeof(unsigned char));
-    img_obuf_yuv_complete.img_b = (unsigned char *) malloc(
-        img_obuf_yuv_complete.w * img_obuf_yuv_complete.h * sizeof(unsigned char));
+    img_obuf_yuv_complete.w    = img_in.w;
+    img_obuf_yuv_complete.h    = total_h;
+    int const img_complete_dim = img_obuf_yuv_complete.w * img_obuf_yuv_complete.h;
+    img_obuf_yuv_complete.img_r =
+        (unsigned char *) malloc(img_complete_dim * 3 * sizeof(unsigned char));
+    img_obuf_yuv_complete.img_g = img_obuf_yuv_complete.img_r + img_complete_dim;
+    img_obuf_yuv_complete.img_b = img_obuf_yuv_complete.img_r + img_complete_dim * 2;
   }
 
   MPI_Gatherv(img_obuf_yuv.img_r, img_obuf_yuv.w * img_obuf_yuv.h, MPI_UNSIGNED_CHAR,
@@ -204,7 +204,7 @@ void run_cpu_color_test(PPM_IMG img_in) {
 
   if (rank == 0) {
     write_ppm(img_obuf_yuv_complete, "out_yuv.ppm");
-    free_ppm(img_obuf_yuv_complete);
+    free(img_obuf_yuv_complete.img_r);
     free(recvcounts);
     free(displs);
   }
