@@ -1,9 +1,9 @@
 #include "hist-equ.h"
 
+#include <mpi.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
 
 // Add here SIMD,
 void histogram(int * hist_out, unsigned char * img_in, int img_size, int nbr_bin) {
@@ -25,7 +25,11 @@ void histogram_equalization(unsigned char * img_out, unsigned char * img_in, int
   min = 0;
   i   = 0;
   while (min == 0) { min = hist_in[i++]; }
-  d = img_size - min;
+
+  int global_img_size = 0;
+  MPI_Allreduce(&img_size, &global_img_size, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+
+  d = global_img_size - min;
   for (i = 0; i < nbr_bin; i++) {
     cdf += hist_in[i];
     // lut[i] = (cdf - min)*(nbr_bin - 1)/d;

@@ -1,5 +1,6 @@
 #include "hist-equ.h"
 
+#include <mpi.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -13,6 +14,9 @@ PGM_IMG contrast_enhancement_g(PGM_IMG img_in) {
   result.img = (unsigned char *) malloc(result.w * result.h * sizeof(unsigned char));
 
   histogram(hist, img_in.img, img_in.h * img_in.w, 256);
+  // We need to join the histograms across MPI processes here
+  MPI_Allreduce(MPI_IN_PLACE, hist, 256, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+  // Now apply histogram equalization
   histogram_equalization(result.img, img_in.img, hist, result.w * result.h, 256);
   return result;
 }
@@ -28,6 +32,7 @@ PPM_IMG contrast_enhancement_c_yuv(PPM_IMG img_in) {
   y_equ   = (unsigned char *) malloc(yuv_med.h * yuv_med.w * sizeof(unsigned char));
 
   histogram(hist, yuv_med.img_y, yuv_med.h * yuv_med.w, 256);
+  MPI_Allreduce(MPI_IN_PLACE, hist, 256, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
   histogram_equalization(y_equ, yuv_med.img_y, hist, yuv_med.h * yuv_med.w, 256);
 
   free(yuv_med.img_y);
@@ -52,6 +57,7 @@ PPM_IMG contrast_enhancement_c_hsl(PPM_IMG img_in) {
   l_equ   = (unsigned char *) malloc(hsl_med.height * hsl_med.width * sizeof(unsigned char));
 
   histogram(hist, hsl_med.l, hsl_med.height * hsl_med.width, 256);
+  MPI_Allreduce(MPI_IN_PLACE, hist, 256, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
   histogram_equalization(l_equ, hsl_med.l, hist, hsl_med.width * hsl_med.height, 256);
 
   free(hsl_med.l);
