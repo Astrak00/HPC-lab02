@@ -46,12 +46,12 @@ int main(int argc, char * argv[]) {
   img_ibuf_g.w              = dimensions[0];
   int const rows_per_proc_g = dimensions[1] / numprocs;
   int const remainder_g     = dimensions[1] % numprocs;
-  img_ibuf_g.h              = rows_per_proc_g + (rank == numprocs - 1 ? remainder_g : 0);
+  img_ibuf_g.h              = rows_per_proc_g + (rank < remainder_g ? 1 : 0);
 
   img_ibuf_c.w              = dimensions[2];
   int const rows_per_proc_c = dimensions[3] / numprocs;
   int const remainder_c     = dimensions[3] % numprocs;
-  img_ibuf_c.h              = rows_per_proc_c + (rank == numprocs - 1 ? remainder_c : 0);
+  img_ibuf_c.h              = rows_per_proc_c + (rank < remainder_c ? 1 : 0);
 
   // Cambiar a vector de img_g para hacer un solo malloc o un * muy grande.
   int const grey_dim = img_ibuf_g.w * img_ibuf_g.h;
@@ -75,19 +75,16 @@ int main(int argc, char * argv[]) {
     int offset_g = 0;
     int offset_c = 0;
     for (int i = 0; i < numprocs; i++) {
-      // If last proc, add remainder
-      int r_c         = rows_per_proc_g + (i == numprocs - 1 ? remainder_g : 0);
-      sendcounts_g[i] = r_c * total_w_g;  // Number of elements to send to each process, the number
-                                          // of rows times the width of the image.
-      displs_g[i]  = offset_g;            // Displacement is the offset in the complete image
-      offset_g    += sendcounts_g[i];     // Update offset for next process
+      int rows_g         = rows_per_proc_g + (i < remainder_g ? 1 : 0);
+      sendcounts_g[i]    = rows_g * total_w_g;  // Number of elements per process (rows * width).
+      displs_g[i]        = offset_g;            // Displacement is the offset in the complete image
+      offset_g          += sendcounts_g[i];     // Update offset for next process
 
       // Color
-      int r_g         = rows_per_proc_c + (i == numprocs - 1 ? remainder_c : 0);
-      sendcounts_c[i] = r_g * total_w_c;  // Number of elements to send to each process, the number
-                                          // of rows times the width of the image.
-      displs_c[i]  = offset_c;            // Displacement is the offset in the complete image
-      offset_c    += sendcounts_c[i];     // Update offset for next process
+      int rows_c         = rows_per_proc_c + (i < remainder_c ? 1 : 0);
+      sendcounts_c[i]    = rows_c * total_w_c;  // Number of elements per process (rows * width).
+      displs_c[i]        = offset_c;            // Displacement is the offset in the complete image
+      offset_c          += sendcounts_c[i];     // Update offset for next process
     }
   }
 
@@ -175,7 +172,7 @@ void run_cpu_color_test(PPM_IMG img_in) {
     int remainder     = total_h % numprocs;
     int offset        = 0;
     for (int i = 0; i < numprocs; i++) {
-      int r          = rows_per_proc + (i == numprocs - 1 ? remainder : 0);
+      int r          = rows_per_proc + (i < remainder ? 1 : 0);
       recvcounts[i]  = r * img_in.w;
       displs[i]      = offset;
       offset        += recvcounts[i];
@@ -283,7 +280,7 @@ void run_cpu_gray_test(PGM_IMG img_in) {
     int remainder     = total_h % numprocs;
     int offset        = 0;
     for (int i = 0; i < numprocs; i++) {
-      int r          = rows_per_proc + (i == numprocs - 1 ? remainder : 0);
+      int r          = rows_per_proc + (i < remainder ? 1 : 0);
       recvcounts[i]  = r * img_in.w;
       displs[i]      = offset;
       offset        += recvcounts[i];
