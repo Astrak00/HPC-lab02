@@ -1,8 +1,5 @@
-amdahls y guftafson
-
 build/*
 out*
 in.*
 .clang*
-
-single_*
+contrast*/build

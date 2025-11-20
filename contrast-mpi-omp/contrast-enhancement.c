@@ -1,5 +1,6 @@
 #include "hist-equ.h"
 
+#include <mpi.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -13,27 +14,10 @@ PGM_IMG contrast_enhancement_g(PGM_IMG img_in) {
   result.img = (unsigned char *) malloc(result.w * result.h * sizeof(unsigned char));
 
   histogram(hist, img_in.img, img_in.h * img_in.w, 256);
+  // We need to join the histograms across MPI processes here
+  MPI_Allreduce(MPI_IN_PLACE, hist, 256, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+  // Now apply histogram equalization
   histogram_equalization(result.img, img_in.img, hist, result.w * result.h, 256);
-  return result;
-}
-
-PPM_IMG contrast_enhancement_c_rgb(PPM_IMG img_in) {
-  PPM_IMG result;
-  int hist[256];
-
-  result.w     = img_in.w;
-  result.h     = img_in.h;
-  result.img_r = (unsigned char *) malloc(result.w * result.h * sizeof(unsigned char));
-  result.img_g = (unsigned char *) malloc(result.w * result.h * sizeof(unsigned char));
-  result.img_b = (unsigned char *) malloc(result.w * result.h * sizeof(unsigned char));
-
-  histogram(hist, img_in.img_r, img_in.h * img_in.w, 256);
-  histogram_equalization(result.img_r, img_in.img_r, hist, result.w * result.h, 256);
-  histogram(hist, img_in.img_g, img_in.h * img_in.w, 256);
-  histogram_equalization(result.img_g, img_in.img_g, hist, result.w * result.h, 256);
-  histogram(hist, img_in.img_b, img_in.h * img_in.w, 256);
-  histogram_equalization(result.img_b, img_in.img_b, hist, result.w * result.h, 256);
-
   return result;
 }
 
@@ -48,6 +32,7 @@ PPM_IMG contrast_enhancement_c_yuv(PPM_IMG img_in) {
   y_equ   = (unsigned char *) malloc(yuv_med.h * yuv_med.w * sizeof(unsigned char));
 
   histogram(hist, yuv_med.img_y, yuv_med.h * yuv_med.w, 256);
+  MPI_Allreduce(MPI_IN_PLACE, hist, 256, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
   histogram_equalization(y_equ, yuv_med.img_y, hist, yuv_med.h * yuv_med.w, 256);
 
   free(yuv_med.img_y);
@@ -72,6 +57,7 @@ PPM_IMG contrast_enhancement_c_hsl(PPM_IMG img_in) {
   l_equ   = (unsigned char *) malloc(hsl_med.height * hsl_med.width * sizeof(unsigned char));
 
   histogram(hist, hsl_med.l, hsl_med.height * hsl_med.width, 256);
+  MPI_Allreduce(MPI_IN_PLACE, hist, 256, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
   histogram_equalization(l_equ, hsl_med.l, hist, hsl_med.width * hsl_med.height, 256);
 
   free(hsl_med.l);
@@ -96,6 +82,7 @@ HSL_IMG rgb2hsl(PPM_IMG img_in) {
   img_out.s      = (float *) malloc(img_in.w * img_in.h * sizeof(float));
   img_out.l      = (unsigned char *) malloc(img_in.w * img_in.h * sizeof(unsigned char));
 
+#pragma omp parallel for private(H, S, L)
   for (i = 0; i < img_in.w * img_in.h; i++) {
     float var_r   = ((float) img_in.img_r[i] / 255);  // Convert RGB to [0,1]
     float var_g   = ((float) img_in.img_g[i] / 255);
@@ -166,6 +153,7 @@ PPM_IMG hsl2rgb(HSL_IMG img_in) {
   result.img_g = (unsigned char *) malloc(result.w * result.h * sizeof(unsigned char));
   result.img_b = (unsigned char *) malloc(result.w * result.h * sizeof(unsigned char));
 
+#pragma omp parallel for private(i)
   for (i = 0; i < img_in.width * img_in.height; i++) {
     float H = img_in.h[i];
     float S = img_in.s[i];
@@ -211,6 +199,7 @@ YUV_IMG rgb2yuv(PPM_IMG img_in) {
   img_out.img_u = (unsigned char *) malloc(sizeof(unsigned char) * img_out.w * img_out.h);
   img_out.img_v = (unsigned char *) malloc(sizeof(unsigned char) * img_out.w * img_out.h);
 
+#pragma omp parallel for private(i, r, g, b, y, cb, cr)
   for (i = 0; i < img_out.w * img_out.h; i++) {
     r = img_in.img_r[i];
     g = img_in.img_g[i];
@@ -248,6 +237,7 @@ PPM_IMG yuv2rgb(YUV_IMG img_in) {
   img_out.img_g = (unsigned char *) malloc(sizeof(unsigned char) * img_out.w * img_out.h);
   img_out.img_b = (unsigned char *) malloc(sizeof(unsigned char) * img_out.w * img_out.h);
 
+#pragma omp parallel for private(i, y, cb, cr, rt, gt, bt)
   for (i = 0; i < img_out.w * img_out.h; i++) {
     y  = (int) img_in.img_y[i];
     cb = (int) img_in.img_u[i] - 128;
