@@ -137,7 +137,7 @@ void run_cpu_color_test(PPM_IMG img_in) {
   PPM_IMG img_obuf_hsl_complete, img_obuf_yuv_complete;
 
   int rank, numprocs;
-  double start_time, end_time, start_comms, end_comms;
+  double start_time, end_time;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   MPI_Comm_size(MPI_COMM_WORLD, &numprocs);
 
@@ -150,7 +150,7 @@ void run_cpu_color_test(PPM_IMG img_in) {
     fprintf(stderr, "HSL processing time: %f (ms)\n", (end_time - start_time) * 1000);
   }
 
-  start_comms = MPI_Wtime();
+  start_time  = MPI_Wtime();
   int total_h = 0;
   MPI_Allreduce(&img_in.h, &total_h, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
 
@@ -190,11 +190,14 @@ void run_cpu_color_test(PPM_IMG img_in) {
   MPI_Gatherv(img_obuf_hsl.img_b, img_obuf_hsl.w * img_obuf_hsl.h, MPI_UNSIGNED_CHAR,
               img_obuf_hsl_complete.img_b, recvcounts, displs, MPI_UNSIGNED_CHAR, 0,
               MPI_COMM_WORLD);
-  end_comms = MPI_Wtime();
+  end_time = MPI_Wtime();
 
   if (rank == 0) {
-    fprintf(stderr, "HSL communication time: %f (ms)\n", (end_comms - start_comms) * 1000);
+    fprintf(stderr, "HSL communication time: %f (ms)\n", (end_time - start_time) * 1000);
+    start_time = MPI_Wtime();
     write_ppm(img_obuf_hsl_complete, "out_hsl.ppm");
+    end_time = MPI_Wtime();
+    fprintf(stderr, "HSL write time: %f (ms)\n", (end_time - start_time) * 1000);
     free(img_obuf_hsl_complete.img_r);
   }
   free_ppm(img_obuf_hsl);
@@ -207,7 +210,7 @@ void run_cpu_color_test(PPM_IMG img_in) {
     fprintf(stderr, "YUV processing time: %f (ms)\n", (end_time - start_time) * 1000);
   }
 
-  start_comms = MPI_Wtime();
+  start_time = MPI_Wtime();
   if (rank == 0) {
     img_obuf_yuv_complete.w    = img_in.w;
     img_obuf_yuv_complete.h    = total_h;
@@ -228,10 +231,13 @@ void run_cpu_color_test(PPM_IMG img_in) {
               img_obuf_yuv_complete.img_b, recvcounts, displs, MPI_UNSIGNED_CHAR, 0,
               MPI_COMM_WORLD);
 
-  end_comms = MPI_Wtime();
+  end_time = MPI_Wtime();
   if (rank == 0) {
-    fprintf(stderr, "YUV communication time: %f (ms)\n", (end_comms - start_comms) * 1000);
+    fprintf(stderr, "YUV communication time: %f (ms)\n", (end_time - start_time) * 1000);
+    start_time = MPI_Wtime();
     write_ppm(img_obuf_yuv_complete, "out_yuv.ppm");
+    end_time = MPI_Wtime();
+    fprintf(stderr, "YUV write time: %f (ms)\n", (end_time - start_time) * 1000);
     free(img_obuf_yuv_complete.img_r);
     free(recvcounts);
     free(displs);
@@ -247,7 +253,7 @@ void run_cpu_gray_test(PGM_IMG img_in) {
   PGM_IMG img_obuf;
   PGM_IMG img_obuf_complete;
 
-  double start_time, end_time, start_comms, end_comms;
+  double start_time, end_time;
 
   // printf("Starting CPU processing, on rank %d of %d\n", rank, numprocs);
 
@@ -258,7 +264,7 @@ void run_cpu_gray_test(PGM_IMG img_in) {
     fprintf(stderr, "Grey processing time: %f (ms)\n", (end_time - start_time) * 1000);
   }
 
-  start_comms = MPI_Wtime();
+  start_time  = MPI_Wtime();
   int total_h = 0;
   MPI_Allreduce(&img_in.h, &total_h, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
 
@@ -289,10 +295,13 @@ void run_cpu_gray_test(PGM_IMG img_in) {
 
   MPI_Gatherv(img_obuf.img, img_obuf.w * img_obuf.h, MPI_UNSIGNED_CHAR, img_obuf_complete.img,
               recvcounts, displs, MPI_UNSIGNED_CHAR, 0, MPI_COMM_WORLD);
-  end_comms = MPI_Wtime();
+  end_time = MPI_Wtime();
   if (rank == 0) {
-    fprintf(stderr, "Grey communication time: %f (ms)\n", (end_comms - start_comms) * 1000);
+    fprintf(stderr, "Grey communication time: %f (ms)\n", (end_time - start_time) * 1000);
+    start_time = MPI_Wtime();
     write_pgm(img_obuf_complete, "out.pgm");
+    end_time = MPI_Wtime();
+    fprintf(stderr, "Grey write time: %f (ms)\n", (end_time - start_time) * 1000);
     free_pgm(img_obuf_complete);
     free(recvcounts);
     free(displs);
