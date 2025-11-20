@@ -4,3 +4,5 @@ build/*
 out*
 in.*
 .clang*
+
+single_*
