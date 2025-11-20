@@ -75,16 +75,16 @@ int main(int argc, char * argv[]) {
     int offset_g = 0;
     int offset_c = 0;
     for (int i = 0; i < numprocs; i++) {
-      int rows_g         = rows_per_proc_g + (i < remainder_g ? 1 : 0);
-      sendcounts_g[i]    = rows_g * total_w_g;  // Number of elements per process (rows * width).
-      displs_g[i]        = offset_g;            // Displacement is the offset in the complete image
-      offset_g          += sendcounts_g[i];     // Update offset for next process
+      int rows_g       = rows_per_proc_g + (i < remainder_g ? 1 : 0);
+      sendcounts_g[i]  = rows_g * total_w_g;  // Number of elements per process (rows * width).
+      displs_g[i]      = offset_g;            // Displacement is the offset in the complete image
+      offset_g        += sendcounts_g[i];     // Update offset for next process
 
       // Color
-      int rows_c         = rows_per_proc_c + (i < remainder_c ? 1 : 0);
-      sendcounts_c[i]    = rows_c * total_w_c;  // Number of elements per process (rows * width).
-      displs_c[i]        = offset_c;            // Displacement is the offset in the complete image
-      offset_c          += sendcounts_c[i];     // Update offset for next process
+      int rows_c       = rows_per_proc_c + (i < remainder_c ? 1 : 0);
+      sendcounts_c[i]  = rows_c * total_w_c;  // Number of elements per process (rows * width).
+      displs_c[i]      = offset_c;            // Displacement is the offset in the complete image
+      offset_c        += sendcounts_c[i];     // Update offset for next process
     }
   }
 
