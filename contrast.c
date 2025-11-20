@@ -1,6 +1,5 @@
 #include "hist-equ.h"
 
-#include <chrono>
 #include <mpi.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -9,14 +8,14 @@
 void run_cpu_color_test(PPM_IMG img_in);
 void run_cpu_gray_test(PGM_IMG img_in);
 
-int main(int argc, char ** argv) {
+int main(int argc, char * argv[]) {
   PGM_IMG img_ibuf_g_complete;
   PPM_IMG img_ibuf_c_complete;
   PGM_IMG img_ibuf_g;
   PPM_IMG img_ibuf_c;
 
   int numprocs, rank;
-  MPI_Init(NULL, NULL);
+  MPI_Init(&argc, &argv);
   MPI_Comm_size(MPI_COMM_WORLD, &numprocs);
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
@@ -26,27 +25,31 @@ int main(int argc, char ** argv) {
   // cada uno. Puede que no haya que hacer un scatter. Si hacemos lecturas distribuidas mejor.
   printf("Number of processes: %d - Rank: %d\n", numprocs, rank);
 
-  int total_w, total_h;
+  int total_w_g, total_h_g, total_w_c, total_h_c;
   if (rank == 0) {
     img_ibuf_g_complete = read_pgm("in.pgm");
     img_ibuf_c_complete = read_ppm("in.ppm");
-    total_w             = img_ibuf_g_complete.w;
-    total_h             = img_ibuf_g_complete.h;
+    total_w_g           = img_ibuf_g_complete.w;
+    total_h_g           = img_ibuf_g_complete.h;
+    total_w_c           = img_ibuf_c_complete.w;
+    total_h_c           = img_ibuf_c_complete.h;
   }
 
   // MPI_Bcast(&total_w, 1, MPI_INT, 0, MPI_COMM_WORLD);
   // MPI_Bcast(&total_h, 1, MPI_INT, 0, MPI_COMM_WORLD);
   // Join this into a single broadcast
-  int dimensions[2] = {total_w, total_h};
-  MPI_Bcast(dimensions, 2, MPI_INT, 0, MPI_COMM_WORLD);
+  int dimensions[4] = {total_w_g, total_h_g, total_w_c, total_h_c};
+  MPI_Bcast(dimensions, 4, MPI_INT, 0, MPI_COMM_WORLD);
 
-  img_ibuf_g.w = dimensions[0];
-  img_ibuf_c.w = dimensions[0];
+  img_ibuf_g.w              = dimensions[0];
+  int const rows_per_proc_g = dimensions[1] / numprocs;
+  int const remainder_g     = dimensions[1] % numprocs;
+  img_ibuf_g.h              = rows_per_proc_g + (rank == numprocs - 1 ? remainder_g : 0);
 
-  int rows_per_proc = dimensions[1] / numprocs;
-  int remainder     = dimensions[1] % numprocs;
-  img_ibuf_g.h      = rows_per_proc + (rank == numprocs - 1 ? remainder : 0);
-  img_ibuf_c.h      = img_ibuf_g.h;
+  img_ibuf_c.w              = dimensions[2];
+  int const rows_per_proc_c = dimensions[3] / numprocs;
+  int const remainder_c     = dimensions[3] % numprocs;
+  img_ibuf_c.h              = rows_per_proc_c + (rank == numprocs - 1 ? remainder_c : 0);
 
   // Cambiar a vector de img_g para hacer un solo malloc o un * muy grande.
   int const grey_dim = img_ibuf_g.w * img_ibuf_g.h;
@@ -57,42 +60,61 @@ int main(int argc, char ** argv) {
   img_ibuf_c.img_g    = img_ibuf_c.img_r + color_dim;
   img_ibuf_c.img_b    = img_ibuf_c.img_r + 2 * color_dim;
 
-  int * sendcounts = NULL;  // This array holds the number of elements to send to each process
-  int * displs     = NULL;  // This array holds the displacements for each process
+  // Grey
+  int * sendcounts_g = NULL;  // This array holds the number of elements to send to each process
+  int * sendcounts_c = NULL;  // This array holds the number of elements to send to each process
+  int * displs_g     = NULL;  // This array holds the displacements for each process
+  int * displs_c     = NULL;  // This array holds the displacements for each process
   if (rank == 0) {
-    sendcounts = (int *) malloc(numprocs * sizeof(int));
-    displs     = (int *) malloc(numprocs * sizeof(int));
-    int offset = 0;
+    sendcounts_g = (int *) malloc(numprocs * sizeof(int));
+    sendcounts_c = (int *) malloc(numprocs * sizeof(int));
+    displs_g     = (int *) malloc(numprocs * sizeof(int));
+    displs_c     = (int *) malloc(numprocs * sizeof(int));
+    int offset_g = 0;
+    int offset_c = 0;
     for (int i = 0; i < numprocs; i++) {
-      int r = rows_per_proc + (i == numprocs - 1 ? remainder : 0);  // If last proc, add remainder
-      sendcounts[i] = r * total_w;  // Number of elements to send to each process, the number of
-                                    // rows times the width of the image.
-      displs[i]  = offset;          // Displacement is the offset in the complete image
-      offset    += sendcounts[i];   // Update offset for next process
+      // If last proc, add remainder
+      int r_c         = rows_per_proc_g + (i == numprocs - 1 ? remainder_g : 0);
+      sendcounts_g[i] = r_c * total_w_g;  // Number of elements to send to each process, the number
+                                          // of rows times the width of the image.
+      displs_g[i]  = offset_g;            // Displacement is the offset in the complete image
+      offset_g    += sendcounts_g[i];     // Update offset for next process
+
+      // Color
+      int r_g         = rows_per_proc_c + (i == numprocs - 1 ? remainder_c : 0);
+      sendcounts_c[i] = r_g * total_w_c;  // Number of elements to send to each process, the number
+                                          // of rows times the width of the image.
+      displs_c[i]  = offset_c;            // Displacement is the offset in the complete image
+      offset_c    += sendcounts_c[i];     // Update offset for next process
     }
   }
 
-  // Grey
   // We use Scatterv to distribute different amounts of data to each process, in case the image
   // can't be split evenly into the processes.
   // sendcounts and displs are only valid on rank 0, and NULL on other ranks.
   // they show how many elements to send to each process, and the displacement in the source array.
-  MPI_Scatterv(rank == 0 ? img_ibuf_g_complete.img : NULL, sendcounts, displs, MPI_UNSIGNED_CHAR,
-               img_ibuf_g.img, grey_dim, MPI_UNSIGNED_CHAR, 0, MPI_COMM_WORLD);
+
+  MPI_Scatterv(rank == 0 ? img_ibuf_g_complete.img : NULL, sendcounts_g, displs_g,
+               MPI_UNSIGNED_CHAR, img_ibuf_g.img, grey_dim, MPI_UNSIGNED_CHAR, 0, MPI_COMM_WORLD);
 
   // Color
-  MPI_Scatterv(rank == 0 ? img_ibuf_c_complete.img_r : NULL, sendcounts, displs, MPI_UNSIGNED_CHAR,
-               img_ibuf_c.img_r, color_dim, MPI_UNSIGNED_CHAR, 0, MPI_COMM_WORLD);
+  MPI_Scatterv(rank == 0 ? img_ibuf_c_complete.img_r : NULL, sendcounts_c, displs_c,
+               MPI_UNSIGNED_CHAR, img_ibuf_c.img_r, color_dim, MPI_UNSIGNED_CHAR, 0,
+               MPI_COMM_WORLD);
 
-  MPI_Scatterv(rank == 0 ? img_ibuf_c_complete.img_g : NULL, sendcounts, displs, MPI_UNSIGNED_CHAR,
-               img_ibuf_c.img_g, color_dim, MPI_UNSIGNED_CHAR, 0, MPI_COMM_WORLD);
+  MPI_Scatterv(rank == 0 ? img_ibuf_c_complete.img_g : NULL, sendcounts_c, displs_c,
+               MPI_UNSIGNED_CHAR, img_ibuf_c.img_g, color_dim, MPI_UNSIGNED_CHAR, 0,
+               MPI_COMM_WORLD);
 
-  MPI_Scatterv(rank == 0 ? img_ibuf_c_complete.img_b : NULL, sendcounts, displs, MPI_UNSIGNED_CHAR,
-               img_ibuf_c.img_b, color_dim, MPI_UNSIGNED_CHAR, 0, MPI_COMM_WORLD);
+  MPI_Scatterv(rank == 0 ? img_ibuf_c_complete.img_b : NULL, sendcounts_c, displs_c,
+               MPI_UNSIGNED_CHAR, img_ibuf_c.img_b, color_dim, MPI_UNSIGNED_CHAR, 0,
+               MPI_COMM_WORLD);
 
   if (rank == 0) {
-    free(sendcounts);
-    free(displs);
+    free(sendcounts_g);
+    free(sendcounts_c);
+    free(displs_g);
+    free(displs_c);
   }
 
   printf("Running contrast enhancement for gray-scale images.\n");
@@ -125,10 +147,10 @@ void run_cpu_color_test(PPM_IMG img_in) {
 
   printf("Starting CPU processing hsl ...\n");
 
-  auto start_time_hsl = MPI_Wtime();
-  img_obuf_hsl        = contrast_enhancement_c_hsl(img_in);
-  auto end_time_hsl   = MPI_Wtime();
-  printf("HSL processing time: %f (ms)\n", (end_time_hsl - start_time_hsl) * 1000);
+  int start_time_hsl = MPI_Wtime();
+  img_obuf_hsl       = contrast_enhancement_c_hsl(img_in);
+  int end_time_hsl   = MPI_Wtime();
+  printf("HSL processing time: %d (ms)\n", (end_time_hsl - start_time_hsl) * 1000);
 
   int total_h = 0;
   MPI_Allreduce(&img_in.h, &total_h, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
@@ -177,10 +199,10 @@ void run_cpu_color_test(PPM_IMG img_in) {
   free_ppm(img_obuf_hsl);
 
   printf("Starting CPU processing yuv ...\n");
-  auto start_time_yuv = MPI_Wtime();
-  img_obuf_yuv        = contrast_enhancement_c_yuv(img_in);
-  auto end_time_yuv   = MPI_Wtime();
-  printf("YUV processing time: %f (ms)\n", (end_time_yuv - start_time_yuv) * 1000);
+  int start_time_yuv = MPI_Wtime();
+  img_obuf_yuv       = contrast_enhancement_c_yuv(img_in);
+  int end_time_yuv   = MPI_Wtime();
+  printf("YUV processing time: %d (ms)\n", (end_time_yuv - start_time_yuv) * 1000);
 
   if (rank == 0) {
     img_obuf_yuv_complete.w    = img_in.w;
@@ -221,10 +243,10 @@ void run_cpu_gray_test(PGM_IMG img_in) {
 
   printf("Starting CPU processing, on rank %d of %d\n", rank, numprocs);
 
-  auto start_time_gray = MPI_Wtime();
-  img_obuf             = contrast_enhancement_g(img_in);
-  auto end_time_gray   = MPI_Wtime();
-  printf("Processing time: %f (ms)\n", (end_time_gray - start_time_gray) * 1000);
+  int start_time_gray = MPI_Wtime();
+  img_obuf            = contrast_enhancement_g(img_in);
+  int end_time_gray   = MPI_Wtime();
+  printf("Processing time: %d (ms)\n", (end_time_gray - start_time_gray) * 1000);
 
   int total_h = 0;
   MPI_Allreduce(&img_in.h, &total_h, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
