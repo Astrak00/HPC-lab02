@@ -1,6 +1,7 @@
 #include "hist-equ.h"
 
 #include <mpi.h>
+#include <omp.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -14,8 +15,7 @@ static inline void log_timing(FILE * stream, char const * label, double seconds)
 
 int main(int argc, char * argv[]) {
   int err;
-  err                      = MPI_Init(&argc, &argv);
-  double start_time_global = MPI_Wtime();
+  double start_time_global = omp_get_wtime();
 
   // int mpi_num_nodes;
   // int mpi_my_rank;
@@ -40,10 +40,8 @@ int main(int argc, char * argv[]) {
   img_ibuf_c = read_ppm("in.ppm");
   run_cpu_color_test(img_ibuf_c);
   free_ppm(img_ibuf_c);
-  double end_time_global = MPI_Wtime();
+  double end_time_global = omp_get_wtime();
   log_timing(stderr, "Total execution", end_time_global - start_time_global);
-
-  MPI_Finalize();
 
   return 0;
 }
@@ -52,23 +50,23 @@ void run_cpu_color_test(PPM_IMG img_in) {
   PPM_IMG img_obuf_hsl, img_obuf_yuv;
   double start_time, end_time;
 
-  start_time   = MPI_Wtime();
+  start_time   = omp_get_wtime();
   img_obuf_hsl = contrast_enhancement_c_hsl(img_in);
-  end_time     = MPI_Wtime();
+  end_time     = omp_get_wtime();
   log_timing(stderr, "HSL processing", end_time - start_time);
-  start_time = MPI_Wtime();
+  start_time = omp_get_wtime();
   write_ppm(img_obuf_hsl, "out_hsl.ppm");
-  end_time = MPI_Wtime();
+  end_time = omp_get_wtime();
   log_timing(stderr, "HSL write", end_time - start_time);
 
-  start_time   = MPI_Wtime();
+  start_time   = omp_get_wtime();
   img_obuf_yuv = contrast_enhancement_c_yuv(img_in);
-  end_time     = MPI_Wtime();
+  end_time     = omp_get_wtime();
   log_timing(stderr, "YUV processing", end_time - start_time);
 
-  start_time = MPI_Wtime();
+  start_time = omp_get_wtime();
   write_ppm(img_obuf_yuv, "out_yuv.ppm");
-  end_time = MPI_Wtime();
+  end_time = omp_get_wtime();
   log_timing(stderr, "YUV write", end_time - start_time);
 
   free_ppm(img_obuf_hsl);
@@ -79,14 +77,14 @@ void run_cpu_gray_test(PGM_IMG img_in) {
   PGM_IMG img_obuf;
 
   double start_time, end_time;
-  start_time = MPI_Wtime();
+  start_time = omp_get_wtime();
   img_obuf   = contrast_enhancement_g(img_in);
-  end_time   = MPI_Wtime();
+  end_time   = omp_get_wtime();
   log_timing(stderr, "Grey processing", end_time - start_time);
 
-  start_time = MPI_Wtime();
+  start_time = omp_get_wtime();
   write_pgm(img_obuf, "out.pgm");
-  end_time = MPI_Wtime();
+  end_time = omp_get_wtime();
   log_timing(stderr, "Grey write", end_time - start_time);
   free_pgm(img_obuf);
 }
