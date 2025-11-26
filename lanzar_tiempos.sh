@@ -2,7 +2,7 @@
 
 # CARPETAS=("contrast-mpi-omp" "contrast-mpi" "contrast-omp")
 # NODOS=(1 2 3 4)
-# NPROC=(1 2 4 8 12 16 20 24 28 32 36 40 44 48)
+# NPROC=(1 2 4 8 12 16)
 
 CARPETAS=("contrast-omp")
 NODOS=(1)
@@ -41,6 +41,12 @@ function lanzar_tiempo {
   # Se ejecuta desde el directorio del proyecto para encontrar los archivos de entrada
   (
     cd $CARPETA_PROYECTO
+    if [[ "$CARPETA_PROYECTO" == *omp ]]; then
+      echo "Usando OMP_NUM_THREADS=$NPROC"
+      export OMP_NUM_THREADS=$NPROC
+    else
+      unset OMP_NUM_THREADS
+    fi
     srun -p gpus -N $NODOS -n $NPROC ./build/contrast >/dev/null 2> $OUTPUT_FILE
   )
 } 
