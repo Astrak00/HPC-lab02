@@ -14,7 +14,8 @@ static inline void log_timing(FILE * stream, char const * label, double seconds)
 
 int main(int argc, char * argv[]) {
   int err;
-  err = MPI_Init(&argc, &argv);
+  err                      = MPI_Init(&argc, &argv);
+  double start_time_global = MPI_Wtime();
 
   // int mpi_num_nodes;
   // int mpi_my_rank;
@@ -39,6 +40,8 @@ int main(int argc, char * argv[]) {
   img_ibuf_c = read_ppm("in.ppm");
   run_cpu_color_test(img_ibuf_c);
   free_ppm(img_ibuf_c);
+  double end_time_global = MPI_Wtime();
+  log_timing(stderr, "Total execution", end_time_global - start_time_global);
 
   MPI_Finalize();
 
@@ -143,7 +146,6 @@ void write_ppm(PPM_IMG img, char const * path) {
   fprintf(out_file, "P6\n");
   fprintf(out_file, "%d %d\n255\n", img.w, img.h);
   fwrite(obuf, sizeof(unsigned char), 3 * img.w * img.h, out_file);
-  log_timing(stderr, "Total execution", end_time_global - start_time_global);
 
   fclose(out_file);
   free(obuf);
