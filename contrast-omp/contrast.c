@@ -36,9 +36,9 @@ int main(int argc, char * argv[]) {
   free_pgm(img_ibuf_g);
 
   // printf("Running contrast enhancement for color images.\n");
-  // img_ibuf_c = read_ppm("in.ppm");
-  // run_cpu_color_test(img_ibuf_c);
-  // free_ppm(img_ibuf_c);
+  img_ibuf_c = read_ppm("in.ppm");
+  run_cpu_color_test(img_ibuf_c);
+  free_ppm(img_ibuf_c);
   double end_time_global = omp_get_wtime();
   log_timing(stderr, "Total execution", end_time_global - start_time_global);
 
