@@ -6,7 +6,7 @@ from collections import defaultdict
 
 # Configuration
 folders = ["contrast-mpi-omp", "contrast-mpi", "contrast-omp"]
-folders = ["contrast-omp"]
+#folders = ["contrast-omp"]
 output_csv = "resumen_tiempos.csv"
 
 # Regex to parse filename: tiempo_contrast-mpi-omp_1n_1p_iter1.txt
@@ -14,15 +14,9 @@ filename_pattern = re.compile(r"tiempo_(.+)_(\d+)n_(\d+)p_iter(\d+)\.txt")
 
 # Keys to extract in order
 keys = [
-    "Grey processing",
-    "Grey communication",
-    "Grey write",
-    "HSL processing",
-    "HSL communication",
-    "HSL write",
-    "YUV processing",
-    "YUV communication",
-    "YUV write",
+    "IO time",
+    "Processing time",
+    "Comms time",
     "Total execution"
 ]
 

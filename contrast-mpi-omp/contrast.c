@@ -158,7 +158,7 @@ void run_cpu_color_test(PPM_IMG img_in) {
   // printf("Starting CPU processing hsl ...\n");
 
   MEASURE_TIME(processing_time, img_obuf_hsl = contrast_enhancement_c_hsl(img_in));
-
+  int total_h = 0;
   MEASURE_TIME(comms_time, MPI_Allreduce(&img_in.h, &total_h, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD));
 
   int * recvcounts = NULL;
@@ -246,7 +246,7 @@ void run_cpu_gray_test(PGM_IMG img_in) {
   // printf("Starting CPU processing, on rank %d of %d\n", rank, numprocs);
 
   MEASURE_TIME(processing_time, img_obuf = contrast_enhancement_g(img_in));
-
+  int total_h = 0;
   MEASURE_TIME(comms_time, MPI_Allreduce(&img_in.h, &total_h, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD));
 
   if (rank == 0) {
