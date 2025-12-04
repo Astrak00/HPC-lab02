@@ -127,8 +127,6 @@ int main(int argc, char * argv[]) {
   // printf("Running contrast enhancement for color images.\n");
   run_cpu_color_test(img_ibuf_c);
 
-  MPI_Finalize();
-
   // Free chunk buffers
   free(img_ibuf_g.img);
   free(img_ibuf_c.img_r);
@@ -143,6 +141,8 @@ int main(int argc, char * argv[]) {
     log_timing(stderr, "Comms time", comms_time);
     log_timing(stderr, "Total execution", end_time_global - start_time_global);
   }
+  MPI_Finalize();
+
   return 0;
 }
 
