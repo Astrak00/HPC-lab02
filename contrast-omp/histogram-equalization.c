@@ -8,6 +8,7 @@ void histogram(int * hist_out, unsigned char * img_in, int img_size, int nbr_bin
   int i;
 #pragma omp parallel for
   for (i = 0; i < nbr_bin; i++) { hist_out[i] = 0; }
+  // memset(hist_out, 0, sizeof(int) * nbr_bin);
 
 #pragma omp parallel for reduction(+ : hist_out[ : nbr_bin])
   for (i = 0; i < img_size; i++) { hist_out[img_in[i]]++; }

@@ -23,22 +23,27 @@ static inline void log_timing(FILE * stream, char const * label, double seconds)
 double IO_time_g = 0.0, processing_time_g = 0.0, comms_time_g = 0.0;
 double IO_time_c = 0.0, processing_time_c = 0.0, comms_time_c = 0.0;
 
+void run_cpu_color_test(PPM_IMG img_in);
+void run_cpu_gray_test(PGM_IMG img_in);
+
 int main(int argc, char * argv[]) {
   int err;
   double start_time_global = omp_get_wtime();
 
   PGM_IMG img_ibuf_g;
   PPM_IMG img_ibuf_c;
-  MEASURE_TIME(IO_time_g, img_ibuf_g = read_pgm("in.pgm"));
-  MEASURE_TIME(IO_time_c, img_ibuf_c = read_ppm("in.ppm"));
 
+  // printf("Running contrast enhancement for gray-scale images.\n");
+  MEASURE_TIME(IO_time_g, img_ibuf_g = read_pgm("in.pgm"););
   run_cpu_gray_test(img_ibuf_g);
-  run_cpu_color_test(img_ibuf_c);
-
-  free_ppm(img_ibuf_c);
   free_pgm(img_ibuf_g);
 
+  // printf("Running contrast enhancement for color images.\n");
+  MEASURE_TIME(IO_time_c, img_ibuf_c = read_ppm("in.ppm"););
+  run_cpu_color_test(img_ibuf_c);
+  free_ppm(img_ibuf_c);
   double end_time_global = omp_get_wtime();
+
   log_timing(stderr, "IO time_g", IO_time_g);
   log_timing(stderr, "IO time_c", IO_time_c);
   log_timing(stderr, "Processing time_g", processing_time_g);
@@ -52,13 +57,18 @@ int main(int argc, char * argv[]) {
 
 void run_cpu_color_test(PPM_IMG img_in) {
   PPM_IMG img_obuf_hsl, img_obuf_yuv;
-  double start_time, end_time;
 
-  MEASURE_TIME(processing_time_c, img_obuf_hsl = contrast_enhancement_c_hsl(img_in));
-  MEASURE_TIME(IO_time_c, write_ppm(img_obuf_hsl, "out_hsl.ppm"));
+  // printf("Starting CPU processing...\n");
 
-  MEASURE_TIME(processing_time_c, img_obuf_yuv = contrast_enhancement_c_yuv(img_in));
-  MEASURE_TIME(IO_time_c, write_ppm(img_obuf_yuv, "out_yuv.ppm"));
+  MEASURE_TIME(processing_time_c, img_obuf_hsl = contrast_enhancement_c_hsl(img_in););
+  // printf("HSL processing time: %f (ms)\n", 0.0f /* TIMER */);
+
+  MEASURE_TIME(IO_time_c, write_ppm(img_obuf_hsl, "out_hsl.ppm"););
+
+  MEASURE_TIME(processing_time_c, img_obuf_yuv = contrast_enhancement_c_yuv(img_in););
+  // printf("YUV processing time: %f (ms)\n", 0.0f /* TIMER */);
+
+  MEASURE_TIME(IO_time_c, write_ppm(img_obuf_yuv, "out_yuv.ppm"););
 
   free_ppm(img_obuf_hsl);
   free_ppm(img_obuf_yuv);
@@ -66,9 +76,13 @@ void run_cpu_color_test(PPM_IMG img_in) {
 
 void run_cpu_gray_test(PGM_IMG img_in) {
   PGM_IMG img_obuf;
-  MEASURE_TIME(processing_time_g, img_obuf = contrast_enhancement_g(img_in));
-  MEASURE_TIME(IO_time_g, write_pgm(img_obuf, "out.pgm"));
 
+  // printf("Starting CPU processing...\n");
+
+  MEASURE_TIME(processing_time_g, img_obuf = contrast_enhancement_g(img_in););
+  // printf("Processing time: %f (ms)\n", 0.0f /* TIMER */);
+
+  MEASURE_TIME(IO_time_g, write_pgm(img_obuf, "out.pgm"););
   free_pgm(img_obuf);
 }
 
@@ -81,7 +95,7 @@ PPM_IMG read_ppm(char const * path) {
   int v_max, i;
   in_file = fopen(path, "r");
   if (in_file == NULL) {
-    printf("Input file \"%s\" not found!\n", path);
+    printf("Input file not found!\n");
     exit(1);
   }
   /*Skip the magic number*/
@@ -91,6 +105,7 @@ PPM_IMG read_ppm(char const * path) {
   fscanf(in_file, "%d", &result.w);
   fscanf(in_file, "%d", &result.h);
   fscanf(in_file, "%d\n", &v_max);
+  printf("Image size: %d x %d\n", result.w, result.h);
 
   result.img_r = (unsigned char *) malloc(result.w * result.h * sizeof(unsigned char));
   result.img_g = (unsigned char *) malloc(result.w * result.h * sizeof(unsigned char));
@@ -99,9 +114,6 @@ PPM_IMG read_ppm(char const * path) {
 
   fread(ibuf, sizeof(unsigned char), 3 * result.w * result.h, in_file);
 
-  // This section could use a #pragma omp parallel for, and it could speed up the read.
-  // It has been tested in another machine with a local file system, and it did improve, but because
-  // of the variability of the target systems, it has been left out for now.
   for (i = 0; i < result.w * result.h; i++) {
     result.img_r[i] = ibuf[3 * i + 0];
     result.img_g[i] = ibuf[3 * i + 1];
@@ -120,9 +132,6 @@ void write_ppm(PPM_IMG img, char const * path) {
 
   char * obuf = (char *) malloc(3 * img.w * img.h * sizeof(char));
 
-  // This section could use a #pragma omp parallel for, and it could speed up the write.
-  // It has been tested in another machine with a local file system, and it did improve, but because
-  // of the variability of the target systems, it has been left out for now.
   for (i = 0; i < img.w * img.h; i++) {
     obuf[3 * i + 0] = img.img_r[i];
     obuf[3 * i + 1] = img.img_g[i];
@@ -132,7 +141,6 @@ void write_ppm(PPM_IMG img, char const * path) {
   fprintf(out_file, "P6\n");
   fprintf(out_file, "%d %d\n255\n", img.w, img.h);
   fwrite(obuf, sizeof(unsigned char), 3 * img.w * img.h, out_file);
-
   fclose(out_file);
   free(obuf);
 }
@@ -151,7 +159,7 @@ PGM_IMG read_pgm(char const * path) {
   int v_max;  //, i;
   in_file = fopen(path, "r");
   if (in_file == NULL) {
-    printf("Input file \"%s\" not found!\n", path);
+    printf("Input file not found!\n");
     exit(1);
   }
 
@@ -159,6 +167,7 @@ PGM_IMG read_pgm(char const * path) {
   fscanf(in_file, "%d", &result.w);
   fscanf(in_file, "%d", &result.h);
   fscanf(in_file, "%d\n", &v_max);
+  printf("Image size: %d x %d\n", result.w, result.h);
 
   result.img = (unsigned char *) malloc(result.w * result.h * sizeof(unsigned char));
 

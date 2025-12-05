@@ -1,5 +1,5 @@
 NUMBER_NODES = 2
-NUMBER_PROCESSES = 24
+NUMBER_PROCESSES = 12
 
 compile:
 	cd build && cmake .. && make -j && cd ..

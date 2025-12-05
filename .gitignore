@@ -1,7 +1,8 @@
 build/*
 out*
 in.*
+highres.*
 .clang*
 contrast*/build
 tiempo_*.txt
-*nivida*
+*nvidia*
